@@ -11,9 +11,9 @@
 @interface NSKDataManager : NSObject
 
 + (instancetype)shared;
-
 - (void)sendDatum:(NSDictionary *)datum success:(void (^)())success;
-
 - (NSArray *)loadDataFromFile;
+- (NSString *)authToken;
+- (NSString *)url;
 
 @end

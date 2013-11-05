@@ -93,18 +93,30 @@
 
 - (BOOL)textFieldShouldReturn:(UITextField *)textField
 {
-    [textField resignFirstResponder];
-    
-    NSDictionary *params = @{textField.text: @(self.stepper.value)};
-    [[NSKDataManager shared] sendDatum:params success:^{
-        textField.text = @"";
-        self.stepper.value = 1;
-        [textField becomeFirstResponder];
+    if (![[NSKDataManager shared] url] && ![[NSKDataManager shared] authToken]) {
+        UIAlertView *alert = [[UIAlertView alloc] initWithTitle:@"No url/auth token"
+                                                        message:@"You might want to tap on that there 'Settings' button over there and put a URL and an auth token in"
+                                                       delegate:self
+                                              cancelButtonTitle:@"OK"
+                                              otherButtonTitles:nil];
+        [alert show];
+        return NO;
+    }
+    else {
+        [textField resignFirstResponder];
         
-        [self refreshData];
-        [self.tableView reloadData];
-    }];
-    return YES;
+        NSDictionary *params = @{textField.text: @(self.stepper.value)};
+        
+        [[NSKDataManager shared] sendDatum:params success:^{
+            textField.text = @"";
+            self.stepper.value = 1;
+            [textField becomeFirstResponder];
+            
+            [self refreshData];
+            [self.tableView reloadData];
+        }];
+        return YES;
+    }
 }
 
 #pragma mark - UITableViewDataSource

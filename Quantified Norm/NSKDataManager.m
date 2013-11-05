@@ -9,6 +9,10 @@
 #import "NSKDataManager.h"
 #import "AFHTTPSessionManager.h"
 
+@interface NSKDataManager ()
+@property (nonatomic, strong) AFHTTPSessionManager *manager;
+@end
+
 @implementation NSKDataManager
 
 + (instancetype)shared
@@ -63,22 +67,70 @@
     [self writeDataToFile:allOfTheDataArray];
 }
 
+- (NSString *)authToken
+{
+    return [[NSUserDefaults standardUserDefaults] valueForKey:@"QuantifiedNormAuthToken"];
+}
+
+- (NSString *)url
+{
+    return [[NSUserDefaults standardUserDefaults] valueForKey:@"QuantifiedNormURLToPOSTTo"];
+}
+
 - (void)sendDatum:(NSDictionary *)datum success:(void (^)())success
 {
-    NSURLSessionConfiguration *config = [[NSURLSessionConfiguration alloc] init];
-    config.HTTPAdditionalHeaders = @{@"X-Auth": [[NSUserDefaults standardUserDefaults] valueForKey:@"QuantifiedNormAuthToken"]};
-    AFHTTPSessionManager *manager = [[AFHTTPSessionManager alloc] initWithSessionConfiguration:config];
+    NSError *error;
     
+    NSURLSessionConfiguration *configuration = [NSURLSessionConfiguration defaultSessionConfiguration];
+    NSURLSession *session = [NSURLSession sessionWithConfiguration:configuration];
+
+    NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:[NSURL URLWithString:[self url]]];
+    
+    [request addValue:@"application/json" forHTTPHeaderField:@"Content-Type"];
+    [request addValue:@"application/json" forHTTPHeaderField:@"Accept"];
+    [request addValue:[self authToken] forHTTPHeaderField:@"X-Auth"];
+    
+    [request setHTTPMethod:@"POST"];
+
     NSDateFormatter *dateFormatter = [[NSDateFormatter alloc] init];
     [dateFormatter setDateFormat:@"yyyy-MM-dd'T'HH:mm:ssZ"];
     NSString *dateString = [dateFormatter stringFromDate:[NSDate date]];
-    
+
     NSMutableDictionary *thing = [@{
-                                   @"datum": datum,
-                                   @"sent": @NO,
-                                   @"timestamp": dateString} mutableCopy];
-    NSString *url = [[NSUserDefaults standardUserDefaults] valueForKey:@"QuantifiedNormURLToPOSTTo"];
-    [manager POST:url parameters:thing success:^(NSURLSessionDataTask *task, id responseObject) {
+                                    @"datum": datum,
+                                    @"sent": @NO,
+                                    @"timestamp": dateString} mutableCopy];
+
+    NSData *postData = [NSJSONSerialization dataWithJSONObject:thing options:0 error:&error];
+    [request setHTTPBody:postData];
+    
+    NSURLSessionDataTask *postDataTask = [session dataTaskWithRequest:request completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+        if (!error) {
+            thing[@"sent"] = @YES;
+            [self addNewThingToFile:thing];
+            success();
+        }
+        else {
+            UIAlertView *alertView = [[UIAlertView alloc] initWithTitle:[error localizedDescription]
+                                                                message:[error localizedRecoverySuggestion]
+                                                               delegate:self
+                                                      cancelButtonTitle:@"OK"
+                                                      otherButtonTitles:nil];
+            [alertView show];
+        }
+    }];
+    
+    [postDataTask resume];
+    return;
+    
+    
+    NSURLSessionConfiguration *config = [NSURLSessionConfiguration defaultSessionConfiguration];
+    config.HTTPAdditionalHeaders = @{@"X-Auth": [self authToken]};
+    AFHTTPSessionManager *manager = [[AFHTTPSessionManager alloc] initWithSessionConfiguration:config];
+    self.manager = manager;
+    
+    
+    [manager POST:[self url] parameters:thing success:^(NSURLSessionDataTask *task, id responseObject) {
         thing[@"sent"] = @YES;
         [self addNewThingToFile:thing];
         success();
